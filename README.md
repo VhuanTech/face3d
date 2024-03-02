@@ -1,5 +1,13 @@
 # face3d: Python tools for processing 3D face
 
+#--------------------
+# Issues and Solutions
+#--------------------
+1. ImportError: cannot import name 'mesh_core_cython' from 'face3d.mesh.cython' (unknown location)
+    cd face3d/mesh/cython
+    python3 setup.py build_ext --inplace
+    python3 setup.py install
+
 ## Introduction
 
 This project implements some basic functions related to 3D faces.
