@@ -15,74 +15,92 @@ import face3d
 from face3d import mesh
 from face3d.morphable_model import MorphabelModel
 
-# --------------------- Forward: parameters(shape, expression, pose) --> 3D obj --> 2D image  ---------------
-# --- 1. load model
-bfm = MorphabelModel('Data/BFM/Out/BFM.mat')
-print('init bfm model success')
 
-# --- 2. generate face mesh: vertices(represent shape) & colors(represent texture)
-sp = bfm.get_shape_para('random')
-ep = bfm.get_exp_para('random')
-vertices = bfm.generate_vertices(sp, ep)
+def render_3dmm():
+    # --------------------- Forward: parameters(shape, expression, pose) --> 3D obj --> 2D image  ---------------
+    # --- 1. load model
+    bfm = MorphabelModel('Data/BFM/Out/BFM.mat')
+    print('init bfm model success')
 
-tp = bfm.get_tex_para('random')
-colors = bfm.generate_colors(tp)
-colors = np.minimum(np.maximum(colors, 0), 1)
+    # --- 2. generate face mesh: vertices(represent shape) & colors(represent texture)
+    sp = bfm.get_shape_para('random')
+    ep = bfm.get_exp_para('random')
+    vertices = bfm.generate_vertices(sp, ep)
 
-# --- 3. transform vertices to proper position
-s = 8e-04
-angles = [10, 30, 20]
-t = [0, 0, 0]
-transformed_vertices = bfm.transform(vertices, s, angles, t)
-projected_vertices = transformed_vertices.copy() # using stantard camera & orth projection
+    tp = bfm.get_tex_para('random')
+    colors = bfm.generate_colors(tp)
+    colors = np.minimum(np.maximum(colors, 0), 1)
 
-# --- 4. render(3d obj --> 2d image)
-# set prop of rendering
-h = w = 256; c = 3
-image_vertices = mesh.transform.to_image(projected_vertices, h, w)
-image = mesh.render.render_colors(image_vertices, bfm.triangles, colors, h, w)
+    # --- 3. transform vertices to proper position
+    s = 8e-04
+    angles = [10, 30, 20]
+    t = [0, 0, 0]
+    transformed_vertices = bfm.transform(vertices, s, angles, t)
+    projected_vertices = transformed_vertices.copy() # using stantard camera & orth projection
 
-# -------------------- Back:  2D image points and corresponding 3D vertex indices-->  parameters(pose, shape, expression) ------
-## only use 68 key points to fit
-x = projected_vertices[bfm.kpt_ind, :2] # 2d keypoint, which can be detected from image
-X_ind = bfm.kpt_ind # index of keypoints in 3DMM. fixed.
+    # --- 4. render(3d obj --> 2d image)
+    # set prop of rendering
+    h = w = 256; c = 3
+    image_vertices = mesh.transform.to_image(projected_vertices, h, w)
+    image = mesh.render.render_colors(image_vertices, bfm.triangles, colors, h, w)
 
-# fit
-fitted_sp, fitted_ep, fitted_s, fitted_angles, fitted_t = bfm.fit(x, X_ind, max_iter = 3)
+    # -------------------- Back:  2D image points and corresponding 3D vertex indices-->  parameters(pose, shape, expression) ------
+    ## only use 68 key points to fit
+    x = projected_vertices[bfm.kpt_ind, :2] # 2d keypoint, which can be detected from image
+    X_ind = bfm.kpt_ind # index of keypoints in 3DMM. fixed.
 
-# verify fitted parameters
-fitted_vertices = bfm.generate_vertices(fitted_sp, fitted_ep)
-transformed_vertices = bfm.transform(fitted_vertices, fitted_s, fitted_angles, fitted_t)
+    # fit
+    fitted_sp, fitted_ep, fitted_s, fitted_angles, fitted_t = bfm.fit(x, X_ind, max_iter = 3)
 
-image_vertices = mesh.transform.to_image(transformed_vertices, h, w)
-fitted_image = mesh.render.render_colors(image_vertices, bfm.triangles, colors, h, w)
+    # verify fitted parameters
+    fitted_vertices = bfm.generate_vertices(fitted_sp, fitted_ep)
+    transformed_vertices = bfm.transform(fitted_vertices, fitted_s, fitted_angles, fitted_t)
 
-
-# ------------- print & show 
-print('pose, groudtruth: \n', s, angles[0], angles[1], angles[2], t[0], t[1])
-print('pose, fitted: \n', fitted_s, fitted_angles[0], fitted_angles[1], fitted_angles[2], fitted_t[0], fitted_t[1])
-
-save_folder = 'results/3dmm'
-if not os.path.exists(save_folder):
-    os.mkdir(save_folder)
-
-io.imsave('{}/generated.jpg'.format(save_folder), image)
-io.imsave('{}/fitted.jpg'.format(save_folder), fitted_image)
+    image_vertices = mesh.transform.to_image(transformed_vertices, h, w)
+    fitted_image = mesh.render.render_colors(image_vertices, bfm.triangles, colors, h, w)
 
 
-### ----------------- visualize fitting process
-# fit
-fitted_sp, fitted_ep, fitted_s, fitted_angles, fitted_t = bfm.fit(x, X_ind, max_iter = 3, isShow = True)
+    # ------------- print & show 
+    print('pose, groudtruth: \n', s, angles[0], angles[1], angles[2], t[0], t[1])
+    print('pose, fitted: \n', fitted_s, fitted_angles[0], fitted_angles[1], fitted_angles[2], fitted_t[0], fitted_t[1])
 
-# verify fitted parameters
-for i in range(fitted_sp.shape[0]):
-	fitted_vertices = bfm.generate_vertices(fitted_sp[i], fitted_ep[i])
-	transformed_vertices = bfm.transform(fitted_vertices, fitted_s[i], fitted_angles[i], fitted_t[i])
+    save_folder = 'results/3dmm'
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
 
-	image_vertices = mesh.transform.to_image(transformed_vertices, h, w)
-	fitted_image = mesh.render.render_colors(image_vertices, bfm.triangles, colors, h, w)
-	io.imsave('{}/show_{:0>2d}.jpg'.format(save_folder, i), fitted_image)
+    fn_generated = '{}/generated.jpg'.format(save_folder)
+    io.imsave(fn_generated, (255 * image).astype(np.uint8))
+    print(f'Rendered face image is saved as {fn_generated}')
+    fn_fitted = '{}/fitted.jpg'.format(save_folder)
+    io.imsave(fn_fitted, (255 * fitted_image).astype(np.uint8))
+    print(f'Fitted face image is saved as {fn_fitted}')
 
-options = '-delay 20 -loop 0 -layers optimize' # gif. need ImageMagick.
-subprocess.call('convert {} {}/show_*.jpg {}'.format(options, save_folder, save_folder + '/3dmm.gif'), shell=True)
-subprocess.call('rm {}/show_*.jpg'.format(save_folder), shell=True)
+
+    ### ----------------- visualize fitting process
+    # fit
+    fitted_sp, fitted_ep, fitted_s, fitted_angles, fitted_t = bfm.fit(x, X_ind, max_iter = 3, isShow = True)
+
+    # verify fitted parameters
+    for i in range(fitted_sp.shape[0]):
+        fitted_vertices = bfm.generate_vertices(fitted_sp[i], fitted_ep[i])
+        transformed_vertices = bfm.transform(fitted_vertices, fitted_s[i], fitted_angles[i], fitted_t[i])
+
+        image_vertices = mesh.transform.to_image(transformed_vertices, h, w)
+        fitted_image = mesh.render.render_colors(image_vertices, bfm.triangles, colors, h, w)
+        fn_fitted = '{}/show_{:0>2d}.jpg'.format(save_folder, i)
+        io.imsave(fn_fitted, (255 * fitted_image).astype(np.uint8))
+
+    options = '-delay 20 -loop 0 -layers optimize' # gif. need ImageMagick.
+    fn_gif = save_folder + '/3dmm.gif'
+    subprocess.call('convert {} {}/show_*.jpg {}'.format(options, save_folder,
+                                                        fn_gif), shell=True)
+    subprocess.call('rm {}/show_*.jpg'.format(save_folder), shell=True)
+    print(f'Fitted face image is saved as {fn_gif}')
+
+
+def main():
+    render_3dmm()
+
+
+if __name__ == '__main__':
+    main()
